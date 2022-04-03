@@ -1,0 +1,27 @@
+{
+  "name": "Ancient Apparition",
+  "description": "Able to launch a powerful blast of damaging ice across the battlefield, Ancient Apparition threatens to shatter weakened enemies wherever they are. Slowing enemies as he enhances his allies' effectiveness in battle, he is a constant threat to his foes.", 
+  "external_url": "https://www.dota2.com/hero/ancientapparition", 
+  "image": "ipfs://QmQSEW4hQEt6w5cYvgu6y6xfPTmjt8bi7dokHoftyHHuzg", 
+  "attributes": [ 
+    {
+      "trait_type": "Attack type", 
+      "value": "Ranged"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Strength", 
+      "value": "20"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Agility", 
+      "value": "20"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Intellect", 
+      "value": "23"
+    }
+   ] 
+}

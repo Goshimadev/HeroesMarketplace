@@ -1,0 +1,27 @@
+{
+  "name": "Drow Ranger",
+  "description": "Not many can escape Drow Ranger once she's within range.Able to launch a powerful blast of damaging ice across the battlefield, Ancient Apparition threatens to shatter weakened enemies wherever they are. Slowing enemies as he enhances his allies' effectiveness in battle, he is a constant threat to his foes.", 
+  "external_url": "https://www.dota2.com/hero/drowranger", 
+  "image": "ipfs://QmPtdrijZSzo93cqCKCxNhgGcTGqjQSZPyQRAmiSRjNMNw", 
+  "attributes": [ 
+    {
+      "trait_type": "Attack type", 
+      "value": "Ranged"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Strength", 
+      "value": "16"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Agility", 
+      "value": "20"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Intellect", 
+      "value": "15"
+    }
+   ] 
+}

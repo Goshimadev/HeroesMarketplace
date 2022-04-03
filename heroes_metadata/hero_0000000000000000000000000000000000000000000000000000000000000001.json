@@ -1,0 +1,27 @@
+{
+  "name": "Tiny",
+  "description": "Growing to tremendous size and strength as the battle progresses, Tiny's power can quickly become terrifying. He tosses heroes and creeps at his enemies, or stuns them beneath an avalanche. Should he gather his full strength, he can demolish the enemy's base with ease.", 
+  "external_url": "https://www.dota2.com/hero/tiny", 
+  "image": "ipfs://Qmf6m5j4maCDQV21mRxoH36nfApTjuAHSmPbHgztyaBYCQ", 
+  "attributes": [ 
+    {
+      "trait_type": "Attack type", 
+      "value": "Melee"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Strength", 
+      "value": "30"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Agility", 
+      "value": "0"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Intellect", 
+      "value": "17"
+    }
+   ] 
+}
