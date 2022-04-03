@@ -12,7 +12,11 @@ contract Heroes is ERC721, ERC721URIStorage, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     Counters.Counter private _tokenIdCounter;
 
-    constructor(address minter) ERC721("Heroes", "HERO") {
+    constructor() ERC721("Heroes", "HERO") {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    function setMinter(address minter) public {
         _grantRole(MINTER_ROLE, minter);
     }
 
