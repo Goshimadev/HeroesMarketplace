@@ -16,7 +16,7 @@ contract Heroes is ERC721, ERC721URIStorage, AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
-    function setMinter(address minter) public {
+    function setMinter(address minter) onlyRole(DEFAULT_ADMIN_ROLE) public {
         _grantRole(MINTER_ROLE, minter);
     }
 
