@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/utils/Create2.sol";
 import "./Heroes.sol";
 
 contract Marketplace is Ownable, ERC721Holder {
@@ -18,12 +19,9 @@ contract Marketplace is Ownable, ERC721Holder {
 
     Heroes public nftContract;
 
-    //TODO deploy Hero contract here (Create2?)
-    /**
-      @param contractAddress address of Heroes contract
-     */
-    constructor(Heroes contractAddress) {
-        nftContract = contractAddress;
+    constructor() {
+        address heroesAddress = Create2.deploy(0, 0x0000000000000000000000000000000000000000000000000000000000000001, type(Heroes).creationCode);
+        nftContract = Heroes(heroesAddress);
     }
 
     /**

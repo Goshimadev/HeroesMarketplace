@@ -13,11 +13,7 @@ contract Heroes is ERC721, ERC721URIStorage, AccessControl {
     Counters.Counter private _tokenIdCounter;
 
     constructor() ERC721("Heroes", "HERO") {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    function setMinter(address minter) onlyRole(DEFAULT_ADMIN_ROLE) public {
-        _grantRole(MINTER_ROLE, minter);
+        _grantRole(MINTER_ROLE, msg.sender);
     }
 
     function safeMint(address to, string memory uri) public onlyRole(MINTER_ROLE) {

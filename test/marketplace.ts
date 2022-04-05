@@ -21,16 +21,12 @@ describe("Marketplace", function () {
     before(async () => {
         [owner, seller, buyer] = await ethers.getSigners();
 
-        const HeroesFactory = await ethers.getContractFactory("Heroes");
-        heroesContract = await HeroesFactory.deploy();
-        await heroesContract.deployed();
-
         const MarketplaceFactory = await ethers.getContractFactory("Marketplace");
-        marketplaceContract = await MarketplaceFactory.deploy(heroesContract.address);
+        marketplaceContract = await MarketplaceFactory.deploy();
         await marketplaceContract.deployed();
 
-        await heroesContract.setMinter(marketplaceContract.address);
-
+        heroesContract = await ethers.getContractAt("Heroes", await marketplaceContract.nftContract());
+        
         clean = await network.provider.request({
             method: "evm_snapshot",
             params: [],
