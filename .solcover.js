@@ -1,3 +1,3 @@
 module.exports = {
-  skipFiles: ['Heroes.sol']
+  skipFiles: ['Heroes.sol', 'HRSToken.sol']
 };
