@@ -1,0 +1,1 @@
+{"marketplaceAddress":"0x5FbDB2315678afecb367f032d93F642f64180aa3","nftContractAddress":"0x658441e41F1B91a1f14b05eaBDe696EC60dA6F32","paymentTokenAddress":"0xB7A5bd0345EF1Cc5E66bf61BdeC17D2461fBd968","deployer":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"}
