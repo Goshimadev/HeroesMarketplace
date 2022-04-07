@@ -7,16 +7,22 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./Heroes.sol";
 import "./HRSToken.sol";
 
 contract Marketplace is Ownable, ERC721Holder {
     using SafeERC20 for IERC20;
 
+    /// Listing events
     event Listing(address indexed seller, uint256 indexed tokenId, uint256 price);
     event Cancel(address indexed seller, uint256 indexed tokenId);
     event ItemSold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
+
+    /// Auction events
+    event AuctionStarted(uint256 indexed tokenId, address indexed seller, uint256 startTime);
+    event Bid(uint indexed tokenId, address indexed bidder, uint amount);
 
     struct ListingInfo {
         address seller;
@@ -24,16 +30,34 @@ contract Marketplace is Ownable, ERC721Holder {
     }
 
     /**
+        @dev Auction info
+     */
+    struct Auction {
+        address seller; /// seller address
+        address bidder; /// bidder address
+        uint256 currentBid; /// bidder offer size
+        uint256 startedAt; /// auction start time
+        uint256 bidsCount; /// total bids count for this auction
+    }
+
+    uint256 public auctionDuration = 3 days;
+    uint256 public minBids = 2;
+
+    ///@dev NFT's for sale
+    Heroes public nftContract;
+    ///@dev ERC20 token that accepted for payments
+    IERC20 public paymentToken;
+
+    /**
       @dev Listings of tokens that available fot instant buy
       tokenId to listing info
      */
     mapping(uint256 => ListingInfo) private _directListings;
 
-    ///@dev NFT's for sale
-    Heroes public nftContract;
-
-    ///@dev ERC20 token that accepted for payments
-    IERC20 public paymentToken;
+    /**
+        @dev TokenId to Auction
+     */
+    mapping(uint256 => Auction) private _auctions;
 
     constructor() {
         nftContract = new Heroes();
@@ -50,8 +74,9 @@ contract Marketplace is Ownable, ERC721Holder {
     /**
         @dev Return info about token listing
         @param tokenId Id of token
+        @return listing info
      */
-    function listingInfo(uint256 tokenId) public view returns (ListingInfo memory) {
+    function listingInfo(uint256 tokenId) external view returns (ListingInfo memory) {
         ListingInfo memory listing = _directListings[tokenId];
         require(listing.price > 0, "Item not listed");
         return listing;
@@ -87,17 +112,68 @@ contract Marketplace is Ownable, ERC721Holder {
      */
     function buyItem(uint256 tokenId) external {
         _checkIsTokenListed(tokenId);
-        
+
         ListingInfo memory listing = _directListings[tokenId];
         delete _directListings[tokenId];
-        
+
         nftContract.safeTransferFrom(address(this), msg.sender, tokenId);
         paymentToken.safeTransferFrom(msg.sender, listing.seller, listing.price);
-        
+
         emit ItemSold(tokenId, listing.seller, msg.sender, listing.price);
     }
 
     function _checkIsTokenListed(uint256 tokenId) private view {
         require(_directListings[tokenId].price != 0, "Token not listed for sale");
+    }
+
+    /**
+        @dev Get info abount ongoing auction
+        @param tokenId id of token of ongoing auction
+     */
+    function auction(uint256 tokenId) public view returns (Auction memory) {
+        Auction memory _auction = _auctions[tokenId];
+        require(_auction.seller != address(0), "No auctions for this item");
+        return _auction;
+    }
+
+    /**
+        @dev List item on auction
+     */
+    function listItemOnAuction(uint256 tokenId) external {
+        nftContract.safeTransferFrom(msg.sender, address(this), tokenId);
+        _auctions[tokenId] = Auction({
+            seller: msg.sender,
+            bidder: address(0),
+            currentBid: 0,
+            startedAt: block.timestamp,
+            bidsCount: 0
+        });
+        emit AuctionStarted({ tokenId: tokenId, seller: msg.sender, startTime: block.timestamp });
+    }
+
+    /**
+        @dev Make bid for auction
+        @param tokenId item to buy
+        @param bidAmount new bid price for auction
+     */
+    function makeBid(uint256 tokenId, uint256 bidAmount) external {
+        Auction memory _auction = auction(tokenId);
+        require(bidAmount > _auction.currentBid, "Bid amount must be greater than current bid");
+        require(block.timestamp < _auction.startedAt + auctionDuration, "Auction ended");
+
+        //return funds to previous bidder
+        if (_auction.currentBid > 0) {
+            paymentToken.safeTransfer(_auction.bidder, _auction.currentBid);
+        }
+
+        paymentToken.safeTransferFrom(msg.sender, address(this), bidAmount);
+        
+        _auction.bidder = msg.sender;
+        _auction.currentBid = bidAmount;
+        _auction.bidsCount++;
+
+        _auctions[tokenId] = _auction;
+
+        emit Bid({tokenId: tokenId, bidder: msg.sender, amount: bidAmount});
     }
 }
