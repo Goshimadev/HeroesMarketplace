@@ -22,7 +22,9 @@ contract Marketplace is Ownable, ERC721Holder {
 
     /// Auction events
     event AuctionStarted(uint256 indexed tokenId, address indexed seller, uint256 startTime);
-    event Bid(uint indexed tokenId, address indexed bidder, uint amount);
+    event Bid(uint256 indexed tokenId, address indexed bidder, uint256 amount);
+    event AuctionFinished(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 finalPrice);
+    event AuctionCancelled(uint256 indexed tokenId, address indexed seller);
 
     struct ListingInfo {
         address seller;
@@ -167,13 +169,32 @@ contract Marketplace is Ownable, ERC721Holder {
         }
 
         paymentToken.safeTransferFrom(msg.sender, address(this), bidAmount);
-        
+
         _auction.bidder = msg.sender;
         _auction.currentBid = bidAmount;
         _auction.bidsCount++;
 
         _auctions[tokenId] = _auction;
 
-        emit Bid({tokenId: tokenId, bidder: msg.sender, amount: bidAmount});
+        emit Bid({ tokenId: tokenId, bidder: msg.sender, amount: bidAmount });
+    }
+
+    function finishAuction(uint256 tokenId) external {
+        Auction memory _auction = auction(tokenId);
+        require(block.timestamp > _auction.startedAt + auctionDuration, "Auction still in progress");
+
+        if (_auction.bidsCount > minBids) {
+            nftContract.safeTransferFrom(address(this), _auction.bidder, tokenId);
+            paymentToken.safeTransfer(_auction.seller, _auction.currentBid);
+            emit AuctionFinished(tokenId, _auction.seller, _auction.bidder, _auction.currentBid);
+        } else {
+            nftContract.safeTransferFrom(address(this), _auction.seller, tokenId);
+            if (_auction.currentBid > 0) {
+                paymentToken.safeTransfer(_auction.bidder, _auction.currentBid);
+            }
+            emit AuctionCancelled(tokenId, _auction.seller);
+        }
+
+        delete _auctions[tokenId];
     }
 }

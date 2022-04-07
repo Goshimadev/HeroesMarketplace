@@ -1,6 +1,6 @@
-import { BlockForkEvent } from "@ethersproject/abstract-provider";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
+import { BigNumber } from "ethers";
 import { parseUnits } from "ethers/lib/utils";
 import { ethers, network } from "hardhat";
 import { Heroes, HRSToken } from "../typechain";
@@ -13,14 +13,18 @@ describe("Marketplace", function () {
     let nftContract: Heroes;
     let paymentTokenContract: HRSToken;
 
-    let owner: SignerWithAddress, seller: SignerWithAddress, buyer: SignerWithAddress, buyer2: SignerWithAddress;
+    let owner: SignerWithAddress,
+        seller: SignerWithAddress,
+        buyer: SignerWithAddress,
+        buyer2: SignerWithAddress,
+        buyer3: SignerWithAddress;
 
     const TEST_TOKEN_URI = "test_token_uri";
     const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
     const TOKEN_ID = 0;
 
     before(async () => {
-        [owner, seller, buyer, buyer2] = await ethers.getSigners();
+        [owner, seller, buyer, buyer2, buyer3] = await ethers.getSigners();
 
         const MarketplaceFactory = await ethers.getContractFactory("Marketplace");
         marketplaceContract = await MarketplaceFactory.deploy();
@@ -74,7 +78,7 @@ describe("Marketplace", function () {
         });
     });
 
-    describe("Direct listings", function () {
+    describe("Direct listing", function () {
         const itemPrice = parseUnits("100");
 
         describe("#listItem()", function () {
@@ -150,6 +154,21 @@ describe("Marketplace", function () {
     });
 
     describe("Auction", function () {
+        const firstBidAmount = parseUnits("100");
+        const secondBidAmount = parseUnits("200");
+        const thirdBidAmount = parseUnits("300");
+
+        async function mintAndListItem(seller: SignerWithAddress) {
+            await mintNFT(seller);
+            await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
+            await marketplaceContract.connect(seller).listItemOnAuction(TOKEN_ID);
+        }
+
+        async function mintTokensAndApproveSpend(user: SignerWithAddress, amount: BigNumber) {
+            await paymentTokenContract.connect(user).mint(user.address, amount);
+            await paymentTokenContract.connect(user).approve(marketplaceContract.address, amount);
+        }
+
         describe("#listItem()", function () {
             it("Should list item for sale", async () => {
                 // Mint and approve token
@@ -172,15 +191,6 @@ describe("Marketplace", function () {
         });
 
         describe("#makeBid()", function () {
-            const firstBidAmount = parseUnits("100");
-            const secondBidAmount = parseUnits("200");
-
-            async function mintAndListItem(seller: SignerWithAddress) {
-                await mintNFT(seller);
-                await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
-                await marketplaceContract.connect(seller).listItemOnAuction(TOKEN_ID);
-            }
-
             it("Should fail if there is no auction for this item", async () => {
                 await expect(marketplaceContract.makeBid(TOKEN_ID, firstBidAmount)).to.be.revertedWith(
                     "No auctions for this item"
@@ -200,7 +210,7 @@ describe("Marketplace", function () {
 
                 const duration = (await marketplaceContract.auctionDuration()).toNumber();
                 await networkWait(duration);
-                
+
                 await expect(marketplaceContract.connect(buyer).makeBid(TOKEN_ID, firstBidAmount)).to.be.revertedWith(
                     "Auction ended"
                 );
@@ -208,8 +218,7 @@ describe("Marketplace", function () {
 
             it("Should accept bid", async () => {
                 await mintAndListItem(seller);
-                await paymentTokenContract.connect(buyer).mint(buyer.address, firstBidAmount);
-                await paymentTokenContract.connect(buyer).approve(marketplaceContract.address, firstBidAmount);
+                await mintTokensAndApproveSpend(buyer, firstBidAmount);
 
                 await expect(marketplaceContract.connect(buyer).makeBid(TOKEN_ID, firstBidAmount))
                     // Check bid happen
@@ -230,13 +239,11 @@ describe("Marketplace", function () {
                 await mintAndListItem(seller);
 
                 // Approve and make 1st bid
-                await paymentTokenContract.connect(buyer).mint(buyer.address, firstBidAmount);
-                await paymentTokenContract.connect(buyer).approve(marketplaceContract.address, firstBidAmount);
+                await mintTokensAndApproveSpend(buyer, firstBidAmount);
                 await marketplaceContract.connect(buyer).makeBid(TOKEN_ID, firstBidAmount);
 
                 // Approve and make 2nd bid
-                await paymentTokenContract.connect(buyer2).mint(buyer2.address, secondBidAmount);
-                await paymentTokenContract.connect(buyer2).approve(marketplaceContract.address, secondBidAmount);
+                await mintTokensAndApproveSpend(buyer2, secondBidAmount);
                 await expect(marketplaceContract.connect(buyer2).makeBid(TOKEN_ID, secondBidAmount))
                     // Check bid happen
                     .to.emit(marketplaceContract, "Bid")
@@ -244,7 +251,7 @@ describe("Marketplace", function () {
                     // Check payment deposited
                     .and.emit(paymentTokenContract, "Transfer")
                     .withArgs(buyer2.address, marketplaceContract.address, firstBidAmount)
-                    // Check that contract return deposit to 1st bidder
+                    // Check that contract return deposit to previous bidder
                     .and.emit(paymentTokenContract, "Transfer")
                     .withArgs(marketplaceContract.address, buyer.address, firstBidAmount);
 
@@ -253,6 +260,78 @@ describe("Marketplace", function () {
                 expect(auction.bidder).to.be.equal(buyer2.address);
                 expect(auction.currentBid).to.be.equal(secondBidAmount);
                 expect(auction.bidsCount).to.be.equal(2);
+            });
+        });
+
+        describe("#finishAuction()", function () {
+            it("Should fail if there is no auction for this item", async () => {
+                await expect(marketplaceContract.finishAuction(TOKEN_ID)).to.be.revertedWith(
+                    "No auctions for this item"
+                );
+            });
+
+            it("Should revert if auction still in progress", async () => {
+                await mintAndListItem(seller);
+                await expect(marketplaceContract.finishAuction(TOKEN_ID)).to.be.revertedWith(
+                    "Auction still in progress"
+                );
+            });
+
+            it("Should be canceled if there were less than two bids. NFT and last bid should be returned to owners.", async () => {
+                await mintAndListItem(seller);
+                await mintTokensAndApproveSpend(buyer, firstBidAmount);
+                await marketplaceContract.connect(buyer).makeBid(TOKEN_ID, firstBidAmount);
+
+                const duration = (await marketplaceContract.auctionDuration()).toNumber();
+                await networkWait(duration);
+
+                await expect(marketplaceContract.finishAuction(TOKEN_ID))
+                    // Check that auction cancelled
+                    .to.emit(marketplaceContract, "AuctionCancelled")
+                    .withArgs(TOKEN_ID, seller.address)
+                    // Check that NFT returned to seller
+                    .and.emit(nftContract, "Transfer")
+                    .withArgs(marketplaceContract.address, seller.address, TOKEN_ID)
+                    // Check that funds returned to bidder
+                    .and.emit(paymentTokenContract, "Transfer")
+                    .withArgs(marketplaceContract.address, buyer.address, firstBidAmount);
+
+                // Auction removed
+                await expect(marketplaceContract.auction(TOKEN_ID)).to.be.revertedWith("No auctions for this item");
+            });
+
+            it("Should be successfully anded", async () => {
+                await mintAndListItem(seller);
+
+                // First bid
+                await mintTokensAndApproveSpend(buyer, firstBidAmount);
+                await marketplaceContract.connect(buyer).makeBid(TOKEN_ID, firstBidAmount);
+
+                // Secondd bid
+                await mintTokensAndApproveSpend(buyer2, secondBidAmount);
+                await marketplaceContract.connect(buyer2).makeBid(TOKEN_ID, secondBidAmount);
+
+                //Third bid
+                await mintTokensAndApproveSpend(buyer3, thirdBidAmount);
+                await marketplaceContract.connect(buyer3).makeBid(TOKEN_ID, thirdBidAmount);
+
+                //Wait auction end
+                const duration = (await marketplaceContract.auctionDuration()).toNumber();
+                await networkWait(duration);
+
+                await expect(marketplaceContract.finishAuction(TOKEN_ID))
+                    // Check that auction finished
+                    .to.emit(marketplaceContract, "AuctionFinished")
+                    .withArgs(TOKEN_ID, seller.address, buyer3.address, thirdBidAmount)
+                    // Check that NFT transfered to buyer
+                    .and.emit(nftContract, "Transfer")
+                    .withArgs(marketplaceContract.address, buyer3.address, TOKEN_ID)
+                    // Check that funds transfered to seller
+                    .and.emit(paymentTokenContract, "Transfer")
+                    .withArgs(marketplaceContract.address, seller.address, thirdBidAmount);
+
+                // Auction removed
+                await expect(marketplaceContract.auction(TOKEN_ID)).to.be.revertedWith("No auctions for this item");
             });
         });
     });
