@@ -25,7 +25,7 @@ async function main() {
         deployer: owner.address,
     };
 
-    fs.writeFile("./tasks/DeployedContracts.js", JSON.stringify(contracts), (err) => {
+    fs.writeFile("./tasks/DeployedContracts.json", JSON.stringify(contracts), (err) => {
         if (err) throw err;
     });
 }
