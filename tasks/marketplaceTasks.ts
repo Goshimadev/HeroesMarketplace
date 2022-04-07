@@ -3,7 +3,13 @@ import { parseUnits } from "ethers/lib/utils";
 
 const contractInfo = require("./DeployedContracts.json");
 
-task("createItem", "Create new NFT")
+task(
+    "createItem",
+    `Create new NFT. Test uri:
+    https://gateway.pinata.cloud/ipfs/QmcrrUjqWbUAKhqC84W2Bb6aGpbB7K4WWuYTwzgKZbgzSD
+    https://gateway.pinata.cloud/ipfs/QmPFhAWMTbKJqbKt6Ndz4dfSJ6qdjKD9gx957mHmtRxBwh
+    https://gateway.pinata.cloud/ipfs/QmUFmiG9cPV4krLKfTk4ckjU1v9y6oHBZJjSDVTqTS1ys5`
+)
     .addParam("uri", "NFT uri")
     .setAction(async (taskArgs, hre) => {
         const contract = await hre.ethers.getContractAt("Marketplace", contractInfo.marketplaceAddress);
