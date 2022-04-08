@@ -6,6 +6,13 @@ import { ethers, network } from "hardhat";
 import { Heroes, HRSToken } from "../typechain";
 import { Marketplace } from "../typechain/Marketplace";
 
+const {
+    BN, // Big Number support
+    constants, // Common constants, like the zero address and largest integers
+    expectEvent, // Assertions for emitted events
+    expectRevert, // Assertions for transactions that should fail
+} = require("@openzeppelin/test-helpers");
+
 describe("Marketplace", function () {
     let clean: any;
 
@@ -20,7 +27,6 @@ describe("Marketplace", function () {
         buyer3: SignerWithAddress;
 
     const TEST_TOKEN_URI = "https://gateway.pinata.cloud/ipfs/QmcrrUjqWbUAKhqC84W2Bb6aGpbB7K4WWuYTwzgKZbgzSD";
-    const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
     const TOKEN_ID = 0;
 
     before(async () => {
@@ -130,16 +136,16 @@ describe("Marketplace", function () {
                 //Mint and approve token
                 await mintNFT(seller);
                 await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
-                
-                // TODO test multiple events throught tx receipt and logs
+
                 await expect(marketplaceContract.connect(seller).listItem(TOKEN_ID, itemPrice))
-                    // Check NFT listed
                     .to.emit(marketplaceContract, "Listing")
-                    .withArgs(seller.address, TOKEN_ID, itemPrice)
-                    // CHeck Nft transferred from selled to makeketplace
-                    .and.emit(nftContract, "Transfer")
-                    .withArgs(seller.address, marketplaceContract.address, TOKEN_ID);
-                expect((await marketplaceContract.listingInfo(TOKEN_ID)).price).to.be.equal(itemPrice);
+                    .withArgs(seller.address, TOKEN_ID, itemPrice);
+
+                expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(marketplaceContract.address);
+
+                const listing = await marketplaceContract.listingInfo(TOKEN_ID);
+                expect(listing.price).to.be.equal(itemPrice);
+                expect(listing.seller).to.be.equal(seller.address);
             });
         });
 
@@ -170,12 +176,9 @@ describe("Marketplace", function () {
                 await marketplaceContract.connect(seller).listItem(TOKEN_ID, itemPrice);
 
                 await expect(marketplaceContract.connect(seller).cancel(TOKEN_ID))
-                    // Check listing cancelled
                     .to.emit(marketplaceContract, "Cancel")
-                    .withArgs(seller.address, TOKEN_ID)
-                    // Check NFT returned to owner
-                    .and.emit(nftContract, "Transfer")
-                    .withArgs(marketplaceContract.address, seller.address, TOKEN_ID);
+                    .withArgs(seller.address, TOKEN_ID);
+                expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(seller.address);
                 await expect(marketplaceContract.listingInfo(TOKEN_ID)).to.be.revertedWith("Item not listed");
             });
         });
@@ -192,13 +195,11 @@ describe("Marketplace", function () {
                 await expect(marketplaceContract.connect(buyer).buyItem(TOKEN_ID))
                     // Check item sold
                     .to.emit(marketplaceContract, "ItemSold")
-                    .withArgs(TOKEN_ID, seller.address, buyer.address, itemPrice)
-                    // Check nft transferred to buyer
-                    .and.emit(nftContract, "Transfer")
-                    .withArgs(marketplaceContract.address, buyer.address, TOKEN_ID)
-                    // Check seller receive payment token
-                    .and.emit(paymentTokenContract, "Transfer")
-                    .withArgs(buyer.address, seller.address, itemPrice);
+                    .withArgs(TOKEN_ID, seller.address, buyer.address, itemPrice);
+
+                expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(buyer.address);
+                expect(await paymentTokenContract.balanceOf(buyer.address)).to.be.equal(0);
+                expect(await paymentTokenContract.balanceOf(seller.address)).to.be.equal(itemPrice);
             });
         });
     });
@@ -225,18 +226,14 @@ describe("Marketplace", function () {
                 await mintNFT(seller);
                 await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
 
-                // ??? check emit after transaction complited
-
-                await expect(marketplaceContract.connect(seller).listItemOnAuction(TOKEN_ID))
-                    // Check auction started
-                    .to.emit(marketplaceContract, "AuctionStarted")
-                    //.withArgs(TOKEN_ID, seller.address, ???block.Timestamp);
-                    // Check nft deposited to marketplace
-                    .and.emit(nftContract, "Transfer")
-                    .withArgs(seller.address, marketplaceContract.address, TOKEN_ID);
-
+                await expect(marketplaceContract.connect(seller).listItemOnAuction(TOKEN_ID)).to.emit(
+                    marketplaceContract,
+                    "AuctionStarted"
+                );
                 const auction = await marketplaceContract.auction(TOKEN_ID);
                 expect(auction.seller).to.be.equal(seller.address);
+
+                expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(marketplaceContract.address);
             });
         });
 
@@ -273,16 +270,16 @@ describe("Marketplace", function () {
                 await expect(marketplaceContract.connect(buyer).makeBid(TOKEN_ID, firstBidAmount))
                     // Check bid happen
                     .to.emit(marketplaceContract, "Bid")
-                    .withArgs(TOKEN_ID, buyer.address, firstBidAmount)
-                    // Check payment deposited
-                    .and.emit(paymentTokenContract, "Transfer")
-                    .withArgs(buyer.address, marketplaceContract.address, firstBidAmount);
+                    .withArgs(TOKEN_ID, buyer.address, firstBidAmount);
 
                 // Check that auction info updated
                 const auction = await marketplaceContract.auction(TOKEN_ID);
                 expect(auction.bidder).to.be.equal(buyer.address);
                 expect(auction.currentBid).to.be.equal(firstBidAmount);
                 expect(auction.bidsCount).to.be.equal(1);
+
+                expect(await paymentTokenContract.balanceOf(buyer.address)).to.be.equal(0);
+                expect(await paymentTokenContract.balanceOf(marketplaceContract.address)).to.be.equal(firstBidAmount);
             });
 
             it("Should replace bid of previous bidder", async () => {
@@ -294,22 +291,24 @@ describe("Marketplace", function () {
 
                 // Approve and make 2nd bid
                 await mintTokensAndApproveSpend(buyer2, secondBidAmount);
+
                 await expect(marketplaceContract.connect(buyer2).makeBid(TOKEN_ID, secondBidAmount))
                     // Check bid happen
                     .to.emit(marketplaceContract, "Bid")
-                    .withArgs(TOKEN_ID, buyer2.address, secondBidAmount)
-                    // Check payment deposited
-                    .and.emit(paymentTokenContract, "Transfer")
-                    .withArgs(buyer2.address, marketplaceContract.address, firstBidAmount)
-                    // Check that contract return deposit to previous bidder
-                    .and.emit(paymentTokenContract, "Transfer")
-                    .withArgs(marketplaceContract.address, buyer.address, firstBidAmount);
+                    .withArgs(TOKEN_ID, buyer2.address, secondBidAmount);
 
                 // Check that auction info updated
                 const auction = await marketplaceContract.auction(TOKEN_ID);
                 expect(auction.bidder).to.be.equal(buyer2.address);
                 expect(auction.currentBid).to.be.equal(secondBidAmount);
                 expect(auction.bidsCount).to.be.equal(2);
+
+                // Second bid deposited to marketplace
+                expect(await paymentTokenContract.balanceOf(marketplaceContract.address)).to.be.equal(secondBidAmount);
+                // First bid returned to first buyer
+                expect(await paymentTokenContract.balanceOf(buyer.address)).to.be.equal(firstBidAmount);
+                // Second bid withdrawed from second buyer
+                expect(await paymentTokenContract.balanceOf(buyer2.address)).to.be.equal(0);
             });
         });
 
@@ -338,16 +337,15 @@ describe("Marketplace", function () {
                 await expect(marketplaceContract.finishAuction(TOKEN_ID))
                     // Check that auction cancelled
                     .to.emit(marketplaceContract, "AuctionCancelled")
-                    .withArgs(TOKEN_ID, seller.address)
-                    // Check that NFT returned to seller
-                    .and.emit(nftContract, "Transfer")
-                    .withArgs(marketplaceContract.address, seller.address, TOKEN_ID)
-                    // Check that funds returned to bidder
-                    .and.emit(paymentTokenContract, "Transfer")
-                    .withArgs(marketplaceContract.address, buyer.address, firstBidAmount);
+                    .withArgs(TOKEN_ID, seller.address);
 
                 // Auction removed
                 await expect(marketplaceContract.auction(TOKEN_ID)).to.be.revertedWith("No auctions for this item");
+                // Check that NFT returned to seller
+                expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(seller.address);
+                // Check that funds returned to bidder
+                expect(await paymentTokenContract.balanceOf(marketplaceContract.address)).to.be.equal(0);
+                expect(await paymentTokenContract.balanceOf(buyer.address)).to.be.equal(firstBidAmount);
             });
 
             it("Should be successfully anded", async () => {
@@ -372,16 +370,17 @@ describe("Marketplace", function () {
                 await expect(marketplaceContract.finishAuction(TOKEN_ID))
                     // Check that auction finished
                     .to.emit(marketplaceContract, "AuctionFinished")
-                    .withArgs(TOKEN_ID, seller.address, buyer3.address, thirdBidAmount)
-                    // Check that NFT transfered to buyer
-                    .and.emit(nftContract, "Transfer")
-                    .withArgs(marketplaceContract.address, buyer3.address, TOKEN_ID)
-                    // Check that funds transfered to seller
-                    .and.emit(paymentTokenContract, "Transfer")
-                    .withArgs(marketplaceContract.address, seller.address, thirdBidAmount);
+                    .withArgs(TOKEN_ID, seller.address, buyer3.address, thirdBidAmount);
 
                 // Auction removed
                 await expect(marketplaceContract.auction(TOKEN_ID)).to.be.revertedWith("No auctions for this item");
+
+                // Check that NFT transfered to buyer
+                expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(buyer3.address);
+                // Check that funds transfered to seller
+                expect(await paymentTokenContract.balanceOf(seller.address)).to.been.equal(thirdBidAmount);
+                expect(await paymentTokenContract.balanceOf(marketplaceContract.address)).to.been.equal(0);
+                expect(await paymentTokenContract.balanceOf(buyer3.address)).to.been.equal(0);
             });
         });
     });
