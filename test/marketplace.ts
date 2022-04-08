@@ -19,7 +19,7 @@ describe("Marketplace", function () {
         buyer2: SignerWithAddress,
         buyer3: SignerWithAddress;
 
-    const TEST_TOKEN_URI = "test_token_uri";
+    const TEST_TOKEN_URI = "https://gateway.pinata.cloud/ipfs/QmcrrUjqWbUAKhqC84W2Bb6aGpbB7K4WWuYTwzgKZbgzSD";
     const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
     const TOKEN_ID = 0;
 
@@ -130,7 +130,8 @@ describe("Marketplace", function () {
                 //Mint and approve token
                 await mintNFT(seller);
                 await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
-
+                
+                // TODO test multiple events throught tx receipt and logs
                 await expect(marketplaceContract.connect(seller).listItem(TOKEN_ID, itemPrice))
                     // Check NFT listed
                     .to.emit(marketplaceContract, "Listing")
@@ -183,10 +184,10 @@ describe("Marketplace", function () {
             it("Should sell item to buyer", async () => {
                 // Mint approve and list token for sale
                 await mintNFT(seller);
-                await paymentTokenContract.mint(buyer.address, itemPrice);
                 await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
-                await paymentTokenContract.connect(buyer).approve(marketplaceContract.address, itemPrice);
                 await marketplaceContract.connect(seller).listItem(TOKEN_ID, itemPrice);
+                await paymentTokenContract.mint(buyer.address, itemPrice);
+                await paymentTokenContract.connect(buyer).approve(marketplaceContract.address, itemPrice);
 
                 await expect(marketplaceContract.connect(buyer).buyItem(TOKEN_ID))
                     // Check item sold

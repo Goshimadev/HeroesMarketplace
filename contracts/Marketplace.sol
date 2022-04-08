@@ -67,7 +67,7 @@ contract Marketplace is Ownable, ERC721Holder {
     }
 
     function setAuctionDuration(uint256 duration) external onlyOwner {
-        require(duration > 0, "Auction duration can not be 0");
+        require(duration>0, "Auction duration can not be 0");
         auctionDuration = duration;
     }
 
