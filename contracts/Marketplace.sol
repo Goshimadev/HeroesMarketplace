@@ -66,6 +66,15 @@ contract Marketplace is Ownable, ERC721Holder {
         paymentToken = new HRSToken();
     }
 
+    function setAuctionDuration(uint256 duration) external onlyOwner {
+        require(duration > 0, "Auction duration can not be 0");
+        auctionDuration = duration;
+    }
+
+    function setMinBids(uint256 _minBids) external onlyOwner {
+        minBids = _minBids;
+    }
+
     /**
       @dev Mint new token
      */
@@ -102,6 +111,7 @@ contract Marketplace is Ownable, ERC721Holder {
      */
     function cancel(uint256 tokenId) external {
         _checkIsTokenListed(tokenId);
+        require(_directListings[tokenId].seller == msg.sender, "Only seller can cancel auction");
         delete _directListings[tokenId];
 
         nftContract.safeTransferFrom(address(this), msg.sender, tokenId);

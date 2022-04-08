@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
-import { BigNumber } from "ethers";
+import { BigNumber, utils } from "ethers";
 import { parseUnits } from "ethers/lib/utils";
 import { ethers, network } from "hardhat";
 import { Heroes, HRSToken } from "../typechain";
@@ -71,10 +71,48 @@ describe("Marketplace", function () {
         });
     });
 
-    describe("#createItem()", function () {
-        it("Should create new item", async () => {
-            await mintNFT(owner);
-            expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(owner.address);
+    describe("Common methods", function () {
+        describe("#createItem()", function () {
+            it("Should create new item", async () => {
+                await mintNFT(owner);
+                expect(await nftContract.ownerOf(TOKEN_ID)).to.be.equal(owner.address);
+            });
+        });
+
+        describe("#setAuctionDuration()", function () {
+            it("Should set new duration", async () => {
+                const duration = 60;
+                await marketplaceContract.setAuctionDuration(duration);
+
+                expect(await marketplaceContract.auctionDuration()).to.be.equal(duration);
+            });
+
+            it("Should be reverted if duration equal to zero", async () => {
+                await expect(marketplaceContract.setAuctionDuration(0)).to.be.revertedWith(
+                    "Auction duration can not be 0"
+                );
+            });
+
+            it("Only owner", async () => {
+                await expect(marketplaceContract.connect(buyer).setAuctionDuration(60)).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                );
+            });
+        });
+
+        describe("#setMinBids()", function () {
+            it("Should set min bids count", async () => {
+                const count = 5;
+                await marketplaceContract.setMinBids(count);
+
+                expect(await marketplaceContract.minBids()).to.be.equal(count);
+            });
+
+            it("Only owner", async () => {
+                await expect(marketplaceContract.connect(buyer).setMinBids(1)).to.be.revertedWith(
+                    "Ownable: caller is not the owner"
+                );
+            });
         });
     });
 
@@ -110,6 +148,17 @@ describe("Marketplace", function () {
                 await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
                 await expect(marketplaceContract.connect(seller).cancel(TOKEN_ID)).to.be.revertedWith(
                     "Token not listed for sale"
+                );
+            });
+
+            it("Should fail when not seller try to cancel auction", async () => {
+                // List token
+                await mintNFT(seller);
+                await nftContract.connect(seller).approve(marketplaceContract.address, TOKEN_ID);
+                await marketplaceContract.connect(seller).listItem(TOKEN_ID, itemPrice);
+
+                await expect(marketplaceContract.connect(buyer).cancel(TOKEN_ID)).to.be.revertedWith(
+                    "Only seller can cancel auction"
                 );
             });
 
